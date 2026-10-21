@@ -212,6 +212,11 @@ tests/smoke.sh local/php-patched:8.5-fpm-web fpm web
 tests/smoke.sh local/php-patched:7.4-backport-fpm-web fpm web 712e60f9edfd03f0960fc4fc3c2c375f42b90aa2
 ```
 
+Проверка опубликованных тегов без логина (пустой `DOCKER_CONFIG`,
+`docker manifest inspect` + `docker run php -v`): `tests/verify-published.sh
+<amd64|arm64> [YYYYMMDD]`; в CI — workflow `verify-published` (ручной запуск,
+нативные amd64- и arm64-раннеры).
+
 ## English
 
 PHP 8.5.12 / 8.4.27 / 8.3.36 / 8.2.35 (released 2026-10-21) fix
@@ -288,7 +293,10 @@ dated snapshot (`…-YYYYMMDD`).
 CI builds every image natively on amd64 and arm64, runs `tests/smoke.sh`
 (version >= fixed or the backport commit, extension list, a real request
 through php-fpm / Apache) and only then publishes to GHCR. Weekly scheduled
-rebuilds pick up OS security updates.
+rebuilds pick up OS security updates. `tests/verify-published.sh
+<amd64|arm64> [YYYYMMDD]` (and the manual `verify-published` workflow on
+native amd64/arm64 runners) checks every published tag anonymously: empty
+`DOCKER_CONFIG`, `docker manifest inspect`, `docker run php -v`.
 
 License: MIT. `core/` is derived from
 [docker-library/php](https://github.com/docker-library/php) (MIT).
