@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1.7
 #
-# Profile layers on top of a "core" PHP image built from core/<branch>/<variant>/
-# (vendored docker-library/php Dockerfiles with the patched PHP_VERSION).
+# Profile layers on top of a "core" PHP image built from core/<branch>/<os>/<variant>/
+# (vendored docker-library/php Dockerfiles with the patched PHP_VERSION, or the
+# hand-maintained core/*-backport/ ones).
 #
-#   docker build -t local/php-core:8.5-fpm core/8.5/fpm
+#   docker build -t local/php-core:8.5-fpm core/8.5/trixie/fpm
 #   docker build --build-arg BASE_IMAGE=local/php-core:8.5-fpm --target app -t my/php:8.5-fpm-app .
 #
 # Targets: base | web | app | dev
@@ -16,11 +17,15 @@ FROM ${COMPOSER_IMAGE} AS composer
 # ---------------------------------------------------------------- base
 FROM ${BASE_IMAGE} AS base
 
-# Pull current Debian security updates on every (weekly) rebuild.
+# Pull current OS security updates (Debian or Alpine) on every (weekly) rebuild.
 RUN set -eux; \
-    apt-get update; \
-    apt-get -y upgrade; \
-    rm -rf /var/lib/apt/lists/*
+    if command -v apk >/dev/null; then \
+      apk upgrade --no-cache; \
+    else \
+      apt-get update; \
+      apt-get -y upgrade; \
+      rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # mlocati/docker-php-extension-installer, pinned release + checksum
 ADD --chmod=0755 \
@@ -35,6 +40,9 @@ RUN set -eux; \
       'exit 1' > /usr/local/bin/ipe-retry; \
     chmod 0755 /usr/local/bin/ipe-retry
 
+# profile extension installer (memcached build deps, PHP 7.4 specifics)
+COPY --chmod=0755 profile/ipe-profile /usr/local/bin/ipe-profile
+
 # opcache is built into PHP 8.5; on 8.2-8.4 it is a shared ext that must be enabled
 RUN set -eux; \
     if ! php -m | grep -qi '^Zend OPcache$'; then docker-php-ext-enable opcache; fi; \
@@ -47,25 +55,25 @@ RUN set -eux; \
     php -v
 
 LABEL org.opencontainers.image.source="https://github.com/stufently/php-patched-images" \
-      org.opencontainers.image.description="PHP built from source with fixes for CVE-2026-109618 / CVE-2026-109619" \
+      org.opencontainers.image.description="PHP built from source with fixes for CVE-2026-109618 / CVE-2026-109619 (7.4/8.1: best-effort backport builds)" \
       org.opencontainers.image.licenses="MIT"
 
 # ---------------------------------------------------------------- web
 # WordPress / OpenCart / Joomla / Drupal / classic CMS
 FROM base AS web
 RUN set -eux; \
-    ipe-retry \
-      bcmath exif gd intl mysqli pdo_mysql zip \
-      imagick-3.8.1; \
+    ipe-profile \
+      bcmath exif gd intl ldap mysqli pdo_mysql soap zip \
+      imagick-3.8.1 memcached-3.4.0; \
     php -m
 
 # ---------------------------------------------------------------- app
 # Laravel / Symfony / generic framework apps, queue workers (cli)
 FROM base AS app
 RUN set -eux; \
-    ipe-retry \
-      bcmath exif gd intl pcntl pdo_mysql pdo_pgsql pgsql sockets zip \
-      redis-6.3.0 apcu-5.1.28; \
+    ipe-profile \
+      bcmath exif gd intl ldap pcntl pdo_mysql pdo_pgsql pgsql soap sockets zip \
+      redis-6.3.0 apcu-5.1.28 memcached-3.4.0; \
     php -m
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 
@@ -73,7 +81,7 @@ COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 # app + Xdebug + development php.ini. NOT for production.
 FROM app AS dev
 RUN set -eux; \
-    ipe-retry xdebug-3.5.3; \
+    ipe-profile xdebug-3.5.3; \
     cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"; \
     { \
       echo 'xdebug.mode = develop,debug'; \
