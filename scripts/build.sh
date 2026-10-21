@@ -11,6 +11,7 @@
 # the primary (mutable branch tag), the second the pinned one (exact PHP
 # version, or the php-src commit for backports) from which CI derives the
 # dated snapshot tag.
+# LIST_ONLY=1: only print those lines (to stdout), build nothing.
 set -euo pipefail
 
 BRANCH=$1 OS=$2 VARIANT=$3 PREFIX=${4:-local/php-patched}
@@ -57,7 +58,7 @@ profiles=$(profiles_for "$BRANCH" "$VARIANT")
 [ -n "$profiles" ] || { echo "no profiles for $BRANCH/$OS/$VARIANT" >&2; exit 1; }
 
 core="$PREFIX-core:$BRANCH-$OS-$VARIANT"
-docker build --pull -t "$core" "$DIR"
+[ "${LIST_ONLY:-}" = 1 ] || docker build --pull -t "$core" "$DIR"
 
 for p in $profiles; do
   name="$VARIANT"; [ "$p" = base ] || name="$VARIANT-$p"
@@ -69,6 +70,10 @@ for p in $profiles; do
     for s in "${os_sfx[@]:1}"; do tags+=("$BRANCH-$name$s" "$pinned-$name$s"); done
   fi
   local_tag="$PREFIX:${tags[0]}"
+  if [ "${LIST_ONLY:-}" = 1 ]; then
+    echo "$local_tag $VARIANT $p $commit ${tags[*]}"
+    continue
+  fi
   docker build --build-arg BASE_IMAGE="$core" --target "$p" -t "$local_tag" "$ROOT"
   echo "$local_tag $VARIANT $p $commit ${tags[*]}" >> "${BUILT_LIST:-/dev/null}"
 done

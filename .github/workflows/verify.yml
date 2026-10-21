@@ -1,0 +1,43 @@
+name: verify-published
+
+# Anonymous check of the published tags on native amd64 and arm64 runners:
+# empty DOCKER_CONFIG, `docker manifest inspect`, `docker run php -v`
+# (tests/verify-published.sh). Run by hand after a publishing build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stamp:
+        description: "dated snapshot to check too (YYYYMMDD), empty = skip"
+        required: false
+        default: ""
+      filter:
+        description: "regex on the primary tag"
+        required: false
+        default: "."
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify (${{ matrix.platform.arch }})
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify published tags without login
+        env:
+          ARCH: ${{ matrix.platform.arch }}
+          STAMP: ${{ inputs.stamp }}
+          FILTER: ${{ inputs.filter }}
+        run: tests/verify-published.sh "$ARCH" "$STAMP" "$FILTER"
