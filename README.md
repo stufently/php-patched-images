@@ -42,8 +42,13 @@ docker run --rm ghcr.io/stufently/php-patched-images:8.5-cli php -v   # PHP 8.5.
 
 Официальные `php:*` на Docker Hub выходят с задержкой после релиза. Здесь
 PHP собирается из исходников по тем же Dockerfile, что у docker-library/php
-(коммит с исправленными версиями — `core/UPSTREAM_COMMIT`), тарболы
-проверяются по SHA256 с php.net, плюс готовые наборы расширений, чтобы не
+(коммит с исправленными версиями — `core/UPSTREAM_COMMIT`): тарбол с php.net
+проверяется по SHA256 и GPG-подписи релиз-менеджеров, база —
+`debian:trixie-slim` по дайджесту. На момент выхода (21.10.2026, 15:00 UTC)
+официальные `php:8.x.y` с исправленными версиями на Docker Hub ещё не
+появились (были только `*RC1`), поэтому образы НЕ строятся `FROM php:*`.
+Debian 11 bullseye не собирается (официальные `php:*-bullseye` заморожены на
+старых версиях, напр. 8.2.29). Плюс готовые наборы расширений, чтобы не
 собирать их у себя.
 
 ### Теги
@@ -95,9 +100,20 @@ php -r 'var_dump(version_compare(PHP_VERSION, "8.4.27", ">="));'   # для св
 `php:8.5.12-*`, можно вернуться на них.
 
 Не можете обновиться прямо сейчас — временные меры из
-[advisory php.net](https://www.php.net/archive/2026.php#2026-10-21-5)
-(`memory_limit`, `post_max_size`, `session.upload_progress.enabled=0`, …) только
-снижают риск, решение — обновление.
+[advisory php.net](https://www.php.net/archive/2026.php#2026-10-21-5) только
+снижают риск, решение — обновление:
+
+* `session.upload_progress.enabled=0` — в `php.ini` или в пуле FPM
+  (`php_admin_value[session.upload_progress.enabled] = 0`), НЕ через
+  `ini_set()`/`.user.ini`, затем рестарт всех воркеров;
+* `memory_limit=-1` через `php_admin_value`, низкий `post_max_size`
+  (8M без загрузок файлов, 32M с ними), лимиты на размер/число полей и частей
+  запроса на прокси;
+* на 8.5 — `fatal_error_backtraces=0`.
+
+Дополнительно (общая гигиена, не из advisory): `session.use_strict_mode=1`.
+WAF перед сайтом не спасает, если origin доступен напрямую по IP — закройте
+прямой доступ.
 
 ### Сборка у себя
 
@@ -119,7 +135,9 @@ FrankenPHP and LiteSpeed. See the
 
 These images are built from source using the docker-library/php Dockerfiles
 at the commit that bumped to the fixed versions (`core/UPSTREAM_COMMIT`), with
-the Debian base pinned by digest, and extension profiles on top:
+the Debian base pinned by digest (tarballs verified by SHA256 + GPG; official
+`php:*` images with the fixed versions were not yet on Docker Hub at release
+time, so nothing is built `FROM php:*`; no bullseye), and extension profiles on top:
 
 * tags: `<branch>-<variant>[-<profile>]`, e.g. `8.4-apache-web`, `8.5-cli-app`,
   `8.3-fpm-dev`; exact version tags `8.5.12-fpm-app` and dated snapshots
