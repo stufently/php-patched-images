@@ -1,28 +1,74 @@
 #!/usr/bin/env bash
-# Build core + all profiles for one branch/variant on the local Docker daemon.
-# Usage: scripts/build.sh <8.2|8.3|8.4|8.5> <cli|fpm|apache> [tag-prefix]
-# Result tags: <prefix>:<branch>-<variant>[-<profile>]   (base has no suffix)
+# Build core + all profiles for one branch/os/variant on the local Docker daemon.
+# Usage: scripts/build.sh <branch> <os> <variant> [tag-prefix]
+#   branch:  8.2 | 8.3 | 8.4 | 8.5 | 7.4-backport | 8.1-backport
+#   os:      trixie | bookworm | alpine   (backports: bookworm only)
+#   variant: cli | fpm | apache          (alpine: cli | fpm)
+#
+# Appends one line per image to $BUILT_LIST (if set):
+#   <local-image> <variant> <profile> <backport-commit|-> <tag> <tag>...
+# Tags are the published names without registry and arch. The first one is
+# the primary (mutable branch tag), the second the pinned one (exact PHP
+# version, or the php-src commit for backports) from which CI derives the
+# dated snapshot tag.
 set -euo pipefail
 
-BRANCH=$1 VARIANT=$2 PREFIX=${3:-local/php-patched}
+BRANCH=$1 OS=$2 VARIANT=$3 PREFIX=${4:-local/php-patched}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ALPINE=3.24
+DIR="$ROOT/core/$BRANCH/$OS/$VARIANT"
 
-profiles_for() {
+[ -d "$DIR" ] || { echo "no core/$BRANCH/$OS/$VARIANT" >&2; exit 1; }
+
+profiles_for() { # <branch> <variant>
   case $1 in
-    cli)    echo "base app dev" ;;
-    fpm)    echo "base web app dev" ;;
-    apache) echo "base web app" ;;
-    *) echo "unknown variant $1" >&2; return 1 ;;
+    *-backport)
+      case $2 in cli) echo "base" ;; fpm|apache) echo "base web" ;; esac ;;
+    *)
+      case $OS-$2 in
+        alpine-cli) echo "base app" ;;
+        alpine-fpm) echo "base web app" ;;
+        *-cli)      echo "base app dev" ;;
+        *-fpm)      echo "base web app dev" ;;
+        *-apache)   echo "base web app" ;;
+      esac ;;
   esac
 }
 
-[ -d "$ROOT/core/$BRANCH/$VARIANT" ] || { echo "no core/$BRANCH/$VARIANT" >&2; exit 1; }
+envval() { awk -v k="$1" '$1=="ENV" && $2==k {print $3; exit}' "$DIR/Dockerfile" | tr -d '"'; }
 
-core="$PREFIX-core:$BRANCH-$VARIANT"
-docker build --pull -t "$core" "$ROOT/core/$BRANCH/$VARIANT"
+commit=-
+case $BRANCH in
+  *-backport)
+    commit=$(sed -n 's/^.*PHP_SRC_COMMIT="\([0-9a-f]\{40\}\)".*$/\1/p' "$DIR/Dockerfile")
+    [ -n "$commit" ] || { echo "no PHP_SRC_COMMIT in $DIR/Dockerfile" >&2; exit 1; }
+    pinned="$BRANCH-${commit:0:7}"
+    ;;
+  *)
+    pinned=$(envval PHP_VERSION)
+    [ -n "$pinned" ] || { echo "no PHP_VERSION in $DIR/Dockerfile" >&2; exit 1; }
+    ;;
+esac
 
-for p in $(profiles_for "$VARIANT"); do
-  tag="$PREFIX:$BRANCH-$VARIANT"; [ "$p" = base ] || tag="$tag-$p"
-  docker build --build-arg BASE_IMAGE="$core" --target "$p" -t "$tag" "$ROOT"
-  echo "$tag $VARIANT $p" >> "${BUILT_LIST:-/dev/null}"
+case $OS in trixie) os_sfx=() ;; bookworm) os_sfx=(-bookworm) ;; alpine) os_sfx=(-alpine "-alpine$ALPINE") ;; esac
+[[ $BRANCH == *-backport ]] && os_sfx=()   # one base only, documented in README
+
+profiles=$(profiles_for "$BRANCH" "$VARIANT")
+[ -n "$profiles" ] || { echo "no profiles for $BRANCH/$OS/$VARIANT" >&2; exit 1; }
+
+core="$PREFIX-core:$BRANCH-$OS-$VARIANT"
+docker build --pull -t "$core" "$DIR"
+
+for p in $profiles; do
+  name="$VARIANT"; [ "$p" = base ] || name="$VARIANT-$p"
+  tags=()
+  if [ ${#os_sfx[@]} -eq 0 ]; then
+    tags=("$BRANCH-$name" "$pinned-$name")
+  else
+    tags=("$BRANCH-$name${os_sfx[0]}" "$pinned-$name${os_sfx[0]}")
+    for s in "${os_sfx[@]:1}"; do tags+=("$BRANCH-$name$s" "$pinned-$name$s"); done
+  fi
+  local_tag="$PREFIX:${tags[0]}"
+  docker build --build-arg BASE_IMAGE="$core" --target "$p" -t "$local_tag" "$ROOT"
+  echo "$local_tag $VARIANT $p $commit ${tags[*]}" >> "${BUILT_LIST:-/dev/null}"
 done

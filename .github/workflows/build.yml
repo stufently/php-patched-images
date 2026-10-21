@@ -5,7 +5,7 @@ on:
     branches: [master]
   pull_request:
   schedule:
-    - cron: "17 3 * * 1" # weekly rebuild: Debian security updates
+    - cron: "17 3 * * 1" # weekly rebuild: OS security updates
   workflow_dispatch:
 
 permissions:
@@ -15,136 +15,60 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
-
+# One reusable-workflow call per image family (see images.yml): each family
+# has its own build -> manifest chain, so a red family does not hold back the
+# publication of the others.
 jobs:
-  build:
-    name: ${{ matrix.branch }}-${{ matrix.variant }} (${{ matrix.platform.arch }})
-    runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: 90
+  trixie:
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        branch: ["8.5", "8.4", "8.3", "8.2"]
-        variant: [cli, fpm, apache]
-        platform:
-          - { arch: amd64, runner: ubuntu-24.04 }
-          - { arch: arm64, runner: ubuntu-24.04-arm }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+    uses: ./.github/workflows/images.yml
+    with:
+      targets: >-
+        [
+        {"branch":"8.5","os":"trixie","variant":"cli"},{"branch":"8.5","os":"trixie","variant":"fpm"},{"branch":"8.5","os":"trixie","variant":"apache"},
+        {"branch":"8.4","os":"trixie","variant":"cli"},{"branch":"8.4","os":"trixie","variant":"fpm"},{"branch":"8.4","os":"trixie","variant":"apache"},
+        {"branch":"8.3","os":"trixie","variant":"cli"},{"branch":"8.3","os":"trixie","variant":"fpm"},{"branch":"8.3","os":"trixie","variant":"apache"},
+        {"branch":"8.2","os":"trixie","variant":"cli"},{"branch":"8.2","os":"trixie","variant":"fpm"},{"branch":"8.2","os":"trixie","variant":"apache"}
+        ]
 
-      - name: Build core + profiles
-        env:
-          BRANCH: ${{ matrix.branch }}
-          VARIANT: ${{ matrix.variant }}
-        run: |
-          BUILT_LIST="$RUNNER_TEMP/built.txt" scripts/build.sh "$BRANCH" "$VARIANT" local/php-patched
-          cat "$RUNNER_TEMP/built.txt"
-
-      - name: Smoke tests
-        run: |
-          while read -r tag variant profile; do
-            tests/smoke.sh "$tag" "$variant" "$profile"
-          done < "$RUNNER_TEMP/built.txt"
-
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push per-arch images, record digests
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        env:
-          ARCH: ${{ matrix.platform.arch }}
-          BRANCH: ${{ matrix.branch }}
-          VARIANT: ${{ matrix.variant }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/digests"
-          out="$RUNNER_TEMP/digests/$BRANCH-$VARIANT-$ARCH.txt"
-          : > "$out"
-          while read -r tag _ _; do
-            suffix=${tag#*:}
-            remote="$IMAGE:$suffix-$ARCH"
-            docker tag "$tag" "$remote"
-            docker push "$remote"
-            digest=$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$remote" | grep "^$IMAGE@sha256:" | head -1)
-            [ -n "$digest" ] || { echo "no digest for $remote"; exit 1; }
-            echo "$suffix $digest" >> "$out"
-          done < "$RUNNER_TEMP/built.txt"
-          cat "$out"
-
-      - name: Upload digests
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: digests-${{ matrix.branch }}-${{ matrix.variant }}-${{ matrix.platform.arch }}
-          path: ${{ runner.temp }}/digests/
-          retention-days: 3
-
-  manifest:
-    name: manifest ${{ matrix.branch }}-${{ matrix.variant }}
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
+  bookworm:
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        branch: ["8.5", "8.4", "8.3", "8.2"]
-        variant: [cli, fpm, apache]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+    uses: ./.github/workflows/images.yml
+    with:
+      targets: >-
+        [
+        {"branch":"8.5","os":"bookworm","variant":"cli"},{"branch":"8.5","os":"bookworm","variant":"fpm"},{"branch":"8.5","os":"bookworm","variant":"apache"},
+        {"branch":"8.4","os":"bookworm","variant":"cli"},{"branch":"8.4","os":"bookworm","variant":"fpm"},{"branch":"8.4","os":"bookworm","variant":"apache"},
+        {"branch":"8.3","os":"bookworm","variant":"cli"},{"branch":"8.3","os":"bookworm","variant":"fpm"},{"branch":"8.3","os":"bookworm","variant":"apache"},
+        {"branch":"8.2","os":"bookworm","variant":"cli"},{"branch":"8.2","os":"bookworm","variant":"fpm"},{"branch":"8.2","os":"bookworm","variant":"apache"}
+        ]
 
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  alpine:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/images.yml
+    with:
+      targets: >-
+        [
+        {"branch":"8.5","os":"alpine","variant":"cli"},{"branch":"8.5","os":"alpine","variant":"fpm"},
+        {"branch":"8.4","os":"alpine","variant":"cli"},{"branch":"8.4","os":"alpine","variant":"fpm"},
+        {"branch":"8.3","os":"alpine","variant":"cli"},{"branch":"8.3","os":"alpine","variant":"fpm"},
+        {"branch":"8.2","os":"alpine","variant":"cli"},{"branch":"8.2","os":"alpine","variant":"fpm"}
+        ]
 
-      - name: Download digests
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: digests-${{ matrix.branch }}-${{ matrix.variant }}-*
-          path: ${{ runner.temp }}/digests
-          merge-multiple: true
-
-      # Manifests reference the digests pushed by THIS run, never the mutable
-      # per-arch tags, so a concurrent or re-run job cannot mix images.
-      - name: Create multi-arch manifests
-        env:
-          BRANCH: ${{ matrix.branch }}
-          VARIANT: ${{ matrix.variant }}
-        run: |
-          d="$RUNNER_TEMP/digests"
-          full=$(awk '/^ENV PHP_VERSION /{print $3}' "core/$BRANCH/$VARIANT/Dockerfile")
-          [ -n "$full" ] || { echo "no PHP_VERSION"; exit 1; }
-          case $VARIANT in
-            cli) profiles="base app dev" ;; fpm) profiles="base web app dev" ;; apache) profiles="base web app" ;;
-          esac
-          stamp=$(date -u +%Y%m%d)
-          for p in $profiles; do
-            sfx="$VARIANT"; [ "$p" = base ] || sfx="$VARIANT-$p"
-            amd=$(awk -v k="$BRANCH-$sfx" '$1==k{print $2}' "$d/$BRANCH-$VARIANT-amd64.txt")
-            arm=$(awk -v k="$BRANCH-$sfx" '$1==k{print $2}' "$d/$BRANCH-$VARIANT-arm64.txt")
-            [ -n "$amd" ] && [ -n "$arm" ] || { echo "missing digest for $BRANCH-$sfx"; exit 1; }
-            tags=(-t "$IMAGE:$BRANCH-$sfx" -t "$IMAGE:$full-$sfx")
-            # dated snapshot tags are immutable: never overwrite an existing one
-            if ! docker buildx imagetools inspect "$IMAGE:$full-$sfx-$stamp" >/dev/null 2>&1; then
-              tags+=(-t "$IMAGE:$full-$sfx-$stamp")
-            fi
-            docker buildx imagetools create "${tags[@]}" "$amd" "$arm"
-            docker buildx imagetools inspect "$IMAGE:$full-$sfx"
-          done
+  backport:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/images.yml
+    with:
+      targets: >-
+        [
+        {"branch":"8.1-backport","os":"bookworm","variant":"cli"},{"branch":"8.1-backport","os":"bookworm","variant":"fpm"},{"branch":"8.1-backport","os":"bookworm","variant":"apache"},
+        {"branch":"7.4-backport","os":"bookworm","variant":"cli"},{"branch":"7.4-backport","os":"bookworm","variant":"fpm"},{"branch":"7.4-backport","os":"bookworm","variant":"apache"}
+        ]
