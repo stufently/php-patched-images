@@ -10,6 +10,29 @@ Multi-arch: `linux/amd64` + `linux/arm64`. Rebuilt weekly.
 
 [Русский](#по-русски) | [English](#english)
 
+### Нужна помощь с обновлением PHP или переносом сайта?
+
+Предлагаю платную помощь с обновлением PHP в Docker и на обычных Linux-серверах,
+а также адаптацией старого PHP-сайта к поддерживаемой версии. Сначала проверяем
+версии, зависимости и объём; затем согласуем работу на тестовой копии, проверки
+основных функций, резервную копию и план отката перед боевым переносом.
+Установка исправления в текущей ветке и миграция приложения — разные работы;
+стоимость и срок определяются после оценки. Бэкпорт не заменяет поддержку PHP.
+
+Для оценки напишите текущую версию PHP, CMS/фреймворк, ОС или Docker-образ,
+количество сайтов и желаемый результат. Пароли и ключи присылать не нужно.
+Контакт: [Telegram @stufently](https://t.me/stufently).
+Подробнее об исправлениях: [моя статья на Хабре](https://habr.com/ru/articles/1097456/).
+Использование открытых образов не требует заказа услуги.
+
+**Need paid PHP upgrade help?** I also help migrate legacy PHP applications and
+update PHP on Docker or Linux servers. Scope, price and schedule follow an
+assessment; staging checks, backups and a rollback plan come before production
+rollout. Send your PHP version, framework/CMS and deployment details via
+[Telegram @stufently](https://t.me/stufently), without passwords or keys.
+
+### Quick start
+
 ```bash
 docker pull ghcr.io/stufently/php-patched-images:8.5-fpm-web
 docker run --rm ghcr.io/stufently/php-patched-images:8.5-cli php -v   # PHP 8.5.12 ...
