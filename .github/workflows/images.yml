@@ -18,6 +18,30 @@ permissions:
 env:
   IMAGE: ghcr.io/${{ github.repository }}
   PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+  # Shell function loaded with `eval "$REG_RETRY"` by the push and manifest
+  # steps (same idea as dbuild in scripts/build.sh): run a registry command,
+  # retry up to 2 more times (30s, then 60s pause) ONLY when its output shows a
+  # registry/network error such as GHCR "unknown blob" or a 5xx. Any other
+  # failure is returned at once.
+  REG_RETRY: |
+    REGISTRY_ERR='unknown blob|HTTP status: 5[0-9][0-9]|unexpected status[^:]*: 5[0-9][0-9]|5[0-9][0-9] (Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out)|TLS handshake timeout|i/o timeout|connection reset by peer|toomanyrequests|failed to do request'
+    reg_retry() {
+      local log attempt rc
+      log=$(mktemp)
+      for attempt in 1 2 3; do
+        rc=0
+        "$@" < /dev/null > "$log" 2>&1 || rc=$?
+        cat "$log"
+        [ "$rc" -ne 0 ] || { rm -f "$log"; return 0; }
+        if [ "$attempt" -lt 3 ] && grep -Eq "$REGISTRY_ERR" "$log"; then
+          echo "::warning::$1: registry/network error, retry $attempt/2 in $((attempt * 30))s"
+          sleep $((attempt * 30))
+          continue
+        fi
+        rm -f "$log"
+        return "$rc"
+      done
+    }
 
 jobs:
   build:
@@ -68,6 +92,7 @@ jobs:
           ARCH: ${{ matrix.platform.arch }}
           KEY: ${{ matrix.t.branch }}-${{ matrix.t.os }}-${{ matrix.t.variant }}
         run: |
+          eval "$REG_RETRY"
           mkdir -p "$RUNNER_TEMP/digests"
           out="$RUNNER_TEMP/digests/$KEY-$ARCH.txt"
           : > "$out"
@@ -75,7 +100,7 @@ jobs:
             primary=${tags%% *}
             remote="$IMAGE:$primary-$ARCH"
             docker tag "$image" "$remote"
-            docker push "$remote"
+            reg_retry docker push "$remote"
             digest=$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$remote" | grep "^$IMAGE@sha256:" | head -1)
             [ -n "$digest" ] || { echo "no digest for $remote"; exit 1; }
             echo "$digest $tags" >> "$out"
@@ -123,6 +148,7 @@ jobs:
         env:
           KEY: ${{ matrix.t.branch }}-${{ matrix.t.os }}-${{ matrix.t.variant }}
         run: |
+          eval "$REG_RETRY"
           d="$RUNNER_TEMP/digests"
           amd_f="$d/$KEY-amd64.txt" arm_f="$d/$KEY-arm64.txt"
           [ -s "$amd_f" ] && [ -s "$arm_f" ] || { echo "missing digest files for $KEY"; exit 1; }
@@ -137,6 +163,6 @@ jobs:
             if ! docker buildx imagetools inspect "$IMAGE:$pinned-$stamp" >/dev/null 2>&1; then
               tags+=(-t "$IMAGE:$pinned-$stamp")
             fi
-            docker buildx imagetools create "${tags[@]}" "$amd" "$arm"
+            reg_retry docker buildx imagetools create "${tags[@]}" "$amd" "$arm"
             docker buildx imagetools inspect "$IMAGE:$pinned"
           done < "$amd_f"
