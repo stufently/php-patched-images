@@ -21,18 +21,12 @@ DIR="$ROOT/core/$BRANCH/$OS/$VARIANT"
 
 [ -d "$DIR" ] || { echo "no core/$BRANCH/$OS/$VARIANT" >&2; exit 1; }
 
-profiles_for() { # <branch> <variant>
+# Same profile set on every branch (8.2-8.5, 7.4/8.1 backports) and every OS.
+# dev (Xdebug) is built for cli and fpm only.
+profiles_for() { # <variant>
   case $1 in
-    *-backport)
-      case $2 in cli) echo "base" ;; fpm|apache) echo "base web" ;; esac ;;
-    *)
-      case $OS-$2 in
-        alpine-cli) echo "base app" ;;
-        alpine-fpm) echo "base web app" ;;
-        *-cli)      echo "base app dev" ;;
-        *-fpm)      echo "base web app dev" ;;
-        *-apache)   echo "base web app" ;;
-      esac ;;
+    cli|fpm) echo "base web app dev" ;;
+    apache)  echo "base web app" ;;
   esac
 }
 
@@ -54,7 +48,7 @@ esac
 case $OS in trixie) os_sfx=() ;; bookworm) os_sfx=(-bookworm) ;; alpine) os_sfx=(-alpine "-alpine$ALPINE") ;; esac
 [[ $BRANCH == *-backport ]] && os_sfx=()   # one base only, documented in README
 
-profiles=$(profiles_for "$BRANCH" "$VARIANT")
+profiles=$(profiles_for "$VARIANT")
 [ -n "$profiles" ] || { echo "no profiles for $BRANCH/$OS/$VARIANT" >&2; exit 1; }
 
 core="$PREFIX-core:$BRANCH-$OS-$VARIANT"

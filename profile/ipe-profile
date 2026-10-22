@@ -29,6 +29,7 @@ apcu-5.1.28 ca9c1820810a168786f8048a4c3f8c9e3fd941407ad1553259fb2e30b5f057bf kra
 imagick-3.8.1 3a3587c0a524c17d0dad9673a160b90cd776e836838474e173b549ed864352ee Imagick/imagick 3.8.1 b0e9279ddf6e75a8c6b4068e16daec0475427dbca7ce2e144e30a51a88aa5ddc
 memcached-3.4.0 c163434eb0da97c8f45c7ad41d979d381f8b81c49402b1b90b063987fb37972e php-memcached-dev/php-memcached v3.4.0 10b98a0fdc3ce9ab823db59e8935f068de87e374728871a1efacdadd8c7807d1
 redis-6.3.0 0d5141f634bd1db6c1ddcda053d25ecf2c4fc1c395430d534fd3f8d51dd7f0b5 phpredis/phpredis 6.3.0 cb8f81df1a275599e4f8ddcfec7e1f65ed1953e6f5673649149fd680ebff4cad liblzf:nemequ/liblzf@fb25820c3c0aeafd127956ae6c115063b47e459a=8e425b5bf7a569543e29cb4a16a913445d80c4efe83b371760ca798ca9b819ed
+xdebug-3.1.6 554eca0b4d5b7b93cb2258fab0b0bd84cc8721e74322a2255c14e137cbcad5d2 xdebug/xdebug 3.1.6 217e05fbe43940fcbfe18e8f15e3e8ded7dd35926b0bee916782d0fffe8dcc53
 xdebug-3.5.3 f073de91bea046106abf4d6071c963ea71e58571df6ce58948ceca89d121cb2d xdebug/xdebug 3.5.3 954e56021668121ecc50b92d2ad1ce945f22ecf81ffc5bb5835219485b12ef5f
 '
 SRC=/tmp/ipe-profile-src
@@ -114,6 +115,7 @@ else
 			gd) devs="$devs libfreetype-dev libjpeg62-turbo-dev libpng-dev libwebp-dev libxpm-dev" ;;
 			intl) devs="$devs libicu-dev" ;;
 			ldap) devs="$devs libldap2-dev" ;;
+			pgsql|pdo_pgsql) devs="$devs libpq-dev" ;;
 			soap) devs="$devs libxml2-dev" ;;
 			zip) devs="$devs libzip-dev" ;;
 			bcmath|exif|mysqli|pdo_mysql|pcntl|sockets) ;;
@@ -124,6 +126,7 @@ else
 		case "${pd%%=*}" in
 			imagick) devs="$devs libmagickwand-dev" ;;
 			memcached) devs="$devs libmemcached-dev zlib1g-dev" ;;
+			apcu|redis|xdebug) ;;
 			*) echo "ipe-profile: no PHP 7.4 recipe for ${pd%%=*}" >&2; exit 1 ;;
 		esac
 	done

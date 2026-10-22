@@ -79,9 +79,15 @@ COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 
 # ---------------------------------------------------------------- dev
 # app + Xdebug + development php.ini. NOT for production.
+# Xdebug 3.2+ needs PHP 8.0+: the 7.4 backport gets 3.1.6, the last release
+# for PHP 7.2-8.1 (see README).
 FROM app AS dev
 RUN set -eux; \
-    ipe-profile xdebug-3.5.3; \
+    case "$PHP_VERSION" in \
+      7.4.*) xdebug=xdebug-3.1.6 ;; \
+      *)     xdebug=xdebug-3.5.3 ;; \
+    esac; \
+    ipe-profile "$xdebug"; \
     cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"; \
     { \
       echo 'xdebug.mode = develop,debug'; \
