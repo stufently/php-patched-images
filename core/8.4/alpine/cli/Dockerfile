@@ -80,7 +80,7 @@ RUN set -eux; \
 	done; \
 	gpg --batch --verify php.tar.xz.asc php.tar.xz; \
 	gpgconf --kill all; \
-	rm -rf "$GNUPGHOME"; \
+	rm -rf "$GNUPGHOME" || { sleep 1; rm -rf "$GNUPGHOME"; }; \
 	\
 	apk del --no-network .fetch-deps
 

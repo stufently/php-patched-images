@@ -27,6 +27,15 @@ pin() { # <image> -> digest of the multi-arch index
   echo "$d"
 }
 
+# Upstream runs `gpgconf --kill all; rm -rf "$GNUPGHOME"`: the agent sockets
+# vanish asynchronously, so rm can hit ENOENT on S.dirmngr and fail the build.
+# Retry rm once after a pause; `gpg --verify` above it is left untouched.
+gpg_cleanup() { # <Dockerfile>
+  grep -qF 'gpgconf --kill all;' "$1" || return 0
+  sed -i 's/^\(\t*\)rm -rf "\$GNUPGHOME"; \\$/\1rm -rf "$GNUPGHOME" || { sleep 1; rm -rf "$GNUPGHOME"; }; \\/' "$1"
+  grep -q 'rm -rf "$GNUPGHOME" || { sleep 1;' "$1" || { echo "gpg cleanup patch did not apply to $1" >&2; return 1; }
+}
+
 sync_os() { # <os> <upstream dir> <base image> <variants...>
   local os=$1 up=$2 img=$3; shift 3
   local digest; digest=$(pin "$img")
@@ -37,6 +46,7 @@ sync_os() { # <os> <upstream dir> <base image> <variants...>
       cp -a "$TMP/php/$b/$up/$v/." "$dst/"
       grep -qx "FROM $img" "$dst/Dockerfile" || { echo "unexpected FROM in $b/$up/$v" >&2; return 1; }
       sed -i "s|^FROM $img\$|FROM $img@$digest|" "$dst/Dockerfile"
+      gpg_cleanup "$dst/Dockerfile"
     done
   done
 }

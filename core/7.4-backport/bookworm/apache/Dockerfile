@@ -150,7 +150,7 @@ RUN set -eux; \
 	gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "$OPENSSL11_GPG_KEY"; \
 	gpg --batch --verify openssl.tar.gz.asc openssl.tar.gz; \
 	gpgconf --kill all; \
-	rm -rf "$GNUPGHOME"; \
+	rm -rf "$GNUPGHOME" || { sleep 1; rm -rf "$GNUPGHOME"; }; \
 	tar -xzf openssl.tar.gz -C openssl --strip-components=1; \
 	cd openssl; \
 	./config \
