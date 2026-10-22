@@ -30,6 +30,29 @@ profiles_for() { # <variant>
   esac
 }
 
+# docker build, retried up to 2 more times (30s, then 60s pause) ONLY when
+# its log shows a registry/network error (Docker Hub 5xx on the dockerfile
+# frontend or a base image, dropped connection). Any other failure, e.g. a
+# compile error, fails at once. Smoke tests run outside this script and are
+# never retried.
+REGISTRY_ERR='unexpected status from (HEAD|GET) request to [^ ]+: 5[0-9][0-9]|httpReadSeeker: failed open|failed to do request|TLS handshake timeout|i/o timeout|connection reset by peer|toomanyrequests'
+dbuild() {
+  local log attempt rc
+  log=$(mktemp)
+  for attempt in 1 2 3; do
+    rc=0
+    docker build "$@" 2>&1 | tee "$log" || rc=$?
+    [ "$rc" -ne 0 ] || { rm -f "$log"; return 0; }
+    if [ "$attempt" -lt 3 ] && grep -Eq "$REGISTRY_ERR" "$log"; then
+      echo "::warning::docker build: registry/network error, retry $attempt/2 in $((attempt * 30))s" >&2
+      sleep $((attempt * 30))
+      continue
+    fi
+    rm -f "$log"
+    return "$rc"
+  done
+}
+
 envval() { awk -v k="$1" '$1=="ENV" && $2==k {print $3; exit}' "$DIR/Dockerfile" | tr -d '"'; }
 
 commit=-
@@ -52,7 +75,7 @@ profiles=$(profiles_for "$VARIANT")
 [ -n "$profiles" ] || { echo "no profiles for $BRANCH/$OS/$VARIANT" >&2; exit 1; }
 
 core="$PREFIX-core:$BRANCH-$OS-$VARIANT"
-[ "${LIST_ONLY:-}" = 1 ] || docker build --pull -t "$core" "$DIR"
+[ "${LIST_ONLY:-}" = 1 ] || dbuild --pull -t "$core" "$DIR"
 
 for p in $profiles; do
   name="$VARIANT"; [ "$p" = base ] || name="$VARIANT-$p"
@@ -68,6 +91,6 @@ for p in $profiles; do
     echo "$local_tag $VARIANT $p $commit ${tags[*]}"
     continue
   fi
-  docker build --build-arg BASE_IMAGE="$core" --target "$p" -t "$local_tag" "$ROOT"
+  dbuild --build-arg BASE_IMAGE="$core" --target "$p" -t "$local_tag" "$ROOT"
   echo "$local_tag $VARIANT $p $commit ${tags[*]}" >> "${BUILT_LIST:-/dev/null}"
 done
