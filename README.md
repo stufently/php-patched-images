@@ -74,7 +74,7 @@ docker-library/php (коммит с исправленными версиями 
 |---|---|---|---|
 | *(нет)* | Debian 13 trixie | cli, fpm, apache | все |
 | `-bookworm` | Debian 12 bookworm | cli, fpm, apache | все |
-| `-alpine` или `-alpine3.24` | Alpine 3.24 (musl) | cli, fpm | base, web, app |
+| `-alpine` или `-alpine3.24` | Alpine 3.24 (musl) | cli, fpm | все |
 
   Пример: `8.4-fpm-web` (trixie), `8.4-fpm-web-bookworm`,
   `8.4-fpm-web-alpine`, `8.4.27-fpm-web-alpine3.24`,
@@ -85,12 +85,13 @@ docker-library/php (коммит с исправленными версиями 
 | Профиль | Для чего | Расширения сверх стандартных | Варианты |
 |---|---|---|---|
 | *(без суффикса)* `base` | любой PHP-код, свой набор поверх | opcache включён, `php.ini-production`, `expose_php=Off` | cli, fpm, apache |
-| `web` | WordPress, OpenCart, Joomla, Drupal | bcmath exif gd intl ldap mysqli pdo_mysql soap zip imagick memcached | fpm, apache |
+| `web` | WordPress, OpenCart, Joomla, Drupal (и их CLI: wp-cli, cron) | bcmath exif gd intl ldap mysqli pdo_mysql soap zip imagick memcached | cli, fpm, apache |
 | `app` | Laravel, Symfony, воркеры очередей | bcmath exif gd intl ldap pcntl pdo_mysql pdo_pgsql pgsql soap sockets zip redis apcu memcached + composer | cli, fpm, apache |
-| `dev` | локальная разработка (НЕ прод), только Debian | app + xdebug, `php.ini-development` | cli, fpm |
+| `dev` | локальная разработка (НЕ прод) | app + xdebug, `php.ini-development` | cli, fpm |
 
-`web` собирается только для веб-SAPI (fpm, apache): CMS без веб-сервера не
-работает; для CLI-скриптов берите `base` или `app`. Стандартные расширения
+`cli-web` — тот же набор, что у `fpm-web`, для CLI-задач CMS (wp-cli, cron,
+воркеры) в отдельном контейнере. Профили одинаковы на всех базах (trixie,
+bookworm, Alpine) и на бэкпортах 7.4/8.1. Стандартные расширения
 официального образа (curl, mbstring, openssl, sodium, PDO, pdo_sqlite, xml,
 dom, fileinfo, …) есть во всех.
 
@@ -109,12 +110,12 @@ RUN install-php-extensions mongodb
 
 | Ветка (PHP внутри) | trixie | bookworm | alpine |
 |---|---|---|---|
-| 8.5 (8.5.12) | `8.5-cli` `8.5-cli-app` `8.5-cli-dev` `8.5-fpm` `8.5-fpm-web` `8.5-fpm-app` `8.5-fpm-dev` `8.5-apache` `8.5-apache-web` `8.5-apache-app` | те же с `-bookworm` | `8.5-cli-alpine` `8.5-cli-app-alpine` `8.5-fpm-alpine` `8.5-fpm-web-alpine` `8.5-fpm-app-alpine` |
+| 8.5 (8.5.12) | `8.5-cli` `8.5-cli-web` `8.5-cli-app` `8.5-cli-dev` `8.5-fpm` `8.5-fpm-web` `8.5-fpm-app` `8.5-fpm-dev` `8.5-apache` `8.5-apache-web` `8.5-apache-app` | те же с `-bookworm` | `8.5-cli-alpine` `8.5-cli-web-alpine` `8.5-cli-app-alpine` `8.5-cli-dev-alpine` `8.5-fpm-alpine` `8.5-fpm-web-alpine` `8.5-fpm-app-alpine` `8.5-fpm-dev-alpine` |
 | 8.4 (8.4.27) | то же для `8.4` | то же | то же |
 | 8.3 (8.3.36) | то же для `8.3` | то же | то же |
 | 8.2 (8.2.35) | то же для `8.2` | то же | то же |
-| 8.1 бэкпорт (8.1.34 + коммит `1d7dec1`) | — | `8.1-backport-cli` `8.1-backport-fpm` `8.1-backport-fpm-web` `8.1-backport-apache` `8.1-backport-apache-web` | — |
-| 7.4 бэкпорт (7.4.34-dev, коммит `712e60f`) | — | `7.4-backport-cli` `7.4-backport-fpm` `7.4-backport-fpm-web` `7.4-backport-apache` `7.4-backport-apache-web` | — |
+| 8.1 бэкпорт (8.1.34 + коммит `1d7dec1`) | — | `8.1-backport-cli` `8.1-backport-cli-web` `8.1-backport-cli-app` `8.1-backport-cli-dev` `8.1-backport-fpm` `8.1-backport-fpm-web` `8.1-backport-fpm-app` `8.1-backport-fpm-dev` `8.1-backport-apache` `8.1-backport-apache-web` `8.1-backport-apache-app` | — |
+| 7.4 бэкпорт (7.4.34-dev, коммит `712e60f`) | — | `7.4-backport-cli` `7.4-backport-cli-web` `7.4-backport-cli-app` `7.4-backport-cli-dev` `7.4-backport-fpm` `7.4-backport-fpm-web` `7.4-backport-fpm-app` `7.4-backport-fpm-dev` `7.4-backport-apache` `7.4-backport-apache-web` `7.4-backport-apache-app` | — |
 
 ### Бэкпорты 7.4 и 8.1 (best-effort)
 
@@ -160,8 +161,18 @@ RUN install-php-extensions mongodb
   с поддержки (EOL с 11.09.2023)** — это ещё одна причина считать 7.4-образы
   временной мерой. Корневые сертификаты берутся из системного
   `ca-certificates`.
-* Варианты: `cli`, `fpm`, `apache`; профили `base` и `web` (`web` — для fpm и
-  apache); `app`/`dev` для бэкпортов не собираются.
+* Варианты: `cli`, `fpm`, `apache`; профили те же, что у 8.2+: `base`, `web`,
+  `app` (cli/fpm/apache), `dev` (cli/fpm). У каждого тега есть тег с
+  коммитом (`7.4-backport-712e60f-fpm-app`) и снимок `…-YYYYMMDD`.
+* **Версии расширений для 7.4.** Composer 2.10.3, redis 6.3.0, apcu 5.1.28,
+  memcached 3.4.0 и imagick 3.8.1 поддерживают PHP 7.4 (по `package.xml`
+  PECL: redis — от 7.4.0, apcu — от 7.0, memcached — от 7.0; Composer 2.x —
+  от 7.2.5) и стоят в тех же версиях, что на 8.2+. **Xdebug 3.2+ требует
+  PHP 8.0**, поэтому в `7.4-backport-*-dev` закреплён **Xdebug 3.1.6** —
+  последний выпуск ветки 3.1 (PHP 7.2–8.1, 08.11.2022), с SHA256 тарбола
+  PECL и архива тега GitHub. Ветка 3.1 больше не обновляется — ещё одна
+  причина держать `dev` 7.4 только для локальной отладки. 8.1 получает тот
+  же Xdebug 3.5.3, что и 8.2+ (поддерживает PHP 8.0–8.5).
 
 ### Как проверить свою версию
 
@@ -235,16 +246,18 @@ the base image pinned by digest (tarballs verified by SHA256 + GPG; official
 time, so nothing is built `FROM php:*`; no bullseye), and extension profiles on top:
 
 * tags: `<branch>-<variant>[-<profile>][-<os>]`, e.g. `8.4-apache-web`,
-  `8.5-cli-app`, `8.3-fpm-dev`, `8.4-fpm-web-bookworm`, `8.2-fpm-alpine`;
+  `8.5-cli-app`, `8.5-cli-web`, `8.3-fpm-dev`, `8.4-fpm-web-bookworm`,
+  `8.2-fpm-dev-alpine`;
   exact version tags `8.5.12-fpm-app` and dated snapshots
   `8.5.12-fpm-app-YYYYMMDD`;
 * OS: no suffix = Debian 13 trixie (cli/fpm/apache, all profiles);
   `-bookworm` = Debian 12 (same variants and profiles); `-alpine` /
-  `-alpine3.24` = Alpine 3.24 (cli/fpm, profiles base/web/app, no dev);
-* profiles: `base` (no suffix), `web` (WordPress/OpenCart, fpm/apache only),
-  `app` (Laravel/Symfony + composer), `dev` (app + Xdebug, Debian only) — see
-  the table above; `web` and `app` include **memcached, soap and ldap** on
-  every base;
+  `-alpine3.24` = Alpine 3.24 (cli/fpm, all profiles);
+* profiles: `base` (no suffix), `web` (WordPress/OpenCart; cli/fpm/apache —
+  `cli-web` is for CMS CLI jobs such as wp-cli or cron), `app`
+  (Laravel/Symfony + composer; cli/fpm/apache), `dev` (app + Xdebug; cli/fpm)
+  — see the table above; the same profiles on every base and on the 7.4/8.1
+  backports; `web` and `app` include **memcached, soap and ldap** everywhere;
 * check: `php -v` must report at least the fixed version for your branch;
 * migrate: replace `FROM php:8.x-<variant>[-bookworm|-alpine]` with
   `FROM ghcr.io/stufently/php-patched-images:8.x-<variant>[-bookworm|-alpine]`,
@@ -260,8 +273,8 @@ to a commit — treat them as a stopgap until you move to 8.2+.
 
 | Tag | php-src branch | Pinned commit | `php -v` |
 |---|---|---|---|
-| `8.1-backport-{cli,fpm,fpm-web,apache,apache-web}` | `PHP-8.1-CVE-2026-109618-109619` | `1d7dec178a094e6e75b229ce22754045f8c6070a` | `8.1.34` |
-| `7.4-backport-{cli,fpm,fpm-web,apache,apache-web}` | `PHP-7.4-CVE-2026-109618-109619` | `712e60f9edfd03f0960fc4fc3c2c375f42b90aa2` | `7.4.34-dev` |
+| `8.1-backport-{cli,fpm,apache}[-web,-app]`, `8.1-backport-{cli,fpm}-dev` | `PHP-8.1-CVE-2026-109618-109619` | `1d7dec178a094e6e75b229ce22754045f8c6070a` | `8.1.34` |
+| `7.4-backport-{cli,fpm,apache}[-web,-app]`, `7.4-backport-{cli,fpm}-dev` | `PHP-7.4-CVE-2026-109618-109619` | `712e60f9edfd03f0960fc4fc3c2c375f42b90aa2` | `7.4.34-dev` |
 
 Each also has a commit-pinned tag (`8.1-backport-1d7dec1-fpm-web`) and a
 dated snapshot (`…-YYYYMMDD`).
@@ -287,8 +300,16 @@ dated snapshot (`…-YYYYMMDD`).
   keep the system OpenSSL 3 with security updates. **OpenSSL 1.1.1 itself is
   EOL (since 2023-09-11)** — one more reason to treat 7.4 as a stopgap. CA
   certificates come from the system `ca-certificates`.
-* Variants `cli`, `fpm`, `apache`; profiles `base` and `web` (`web` for fpm
-  and apache); no `app`/`dev`.
+* Variants `cli`, `fpm`, `apache`; profiles as on 8.2+: `base`, `web`, `app`
+  (cli/fpm/apache) and `dev` (cli/fpm).
+* Extension versions on 7.4: Composer 2.10.3, redis 6.3.0, apcu 5.1.28,
+  memcached 3.4.0 and imagick 3.8.1 support PHP 7.4 (PECL `package.xml`:
+  redis from 7.4.0, apcu and memcached from 7.0; Composer 2.x from 7.2.5) and
+  are the same versions as on 8.2+. **Xdebug 3.2+ needs PHP 8.0**, so
+  `7.4-backport-*-dev` pins **Xdebug 3.1.6**, the last 3.1 release (PHP
+  7.2-8.1, 2022-11-08), by SHA256 of the PECL tarball and of the GitHub tag
+  archive. The 3.1 line gets no more updates: keep the 7.4 `dev` images for
+  local debugging only. 8.1 gets the same Xdebug 3.5.3 as 8.2+ (PHP 8.0-8.5).
 
 CI builds every image natively on amd64 and arm64, runs `tests/smoke.sh`
 (version >= fixed or the backport commit, extension list, a real request
