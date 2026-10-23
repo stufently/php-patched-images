@@ -116,7 +116,7 @@ docker-library/php (коммит с исправленными версиями 
 
 | Профиль | Для чего | Расширения сверх стандартных | Варианты |
 |---|---|---|---|
-| *(без суффикса)* `base` | любой PHP-код, свой набор поверх | opcache включён, `php.ini-production`, `expose_php=Off` | cli, fpm, apache |
+| *(без суффикса)* `base` | любой PHP-код, свой набор поверх | opcache включён, `php.ini-production`, `expose_php=Off`, `session.upload_progress.enabled=0` | cli, fpm, apache |
 | `web` | WordPress, OpenCart, Joomla, Drupal (и их CLI: wp-cli, cron) | bcmath exif gd intl ldap mysqli pdo_mysql soap zip imagick memcached | cli, fpm, apache |
 | `app` | Laravel, Symfony, воркеры очередей | bcmath exif gd intl ldap pcntl pdo_mysql pdo_pgsql pgsql soap sockets zip redis apcu memcached + composer | cli, fpm, apache |
 | `dev` | локальная разработка (НЕ прод) | app + xdebug, `php.ini-development` | cli, fpm |
@@ -256,7 +256,9 @@ php -r 'var_dump(version_compare(PHP_VERSION, "8.4.27", ">="));'   # для св
   RCE-вектора **CVE-2026-115560** (эксплуатируется только если приложение
   переключает `session.serialize_handler` в рантайме через `ini_set()` до
   `session_start()`; приложения, которые этого не делают, могут оставить опцию
-  включённой);
+  включённой). **В этих образах она уже выключена по умолчанию** — в overlay
+  `zz-patched-images.ini`; если нужен нативный upload progress, переопределите
+  в своём `conf.d`;
 * `memory_limit=-1` через `php_admin_value`, низкий `post_max_size`
   (8M без загрузок файлов, 32M с ними), лимиты на размер/число полей и частей
   запроса на прокси;
@@ -335,7 +337,9 @@ It is exploitable only if an application sets `session.serialize_handler` to
 `php_binary`/`php_serialize` and then switches it to `php` at runtime with
 `ini_set()` before `session_start()`; applications that never change the
 serialize handler at runtime can keep the feature enabled. The fix ships in the
-next release; these images do not change the default.
+next release. **These images already set `session.upload_progress.enabled=0` by
+default** (in the `zz-patched-images.ini` overlay) — override it in your own
+`conf.d` if you need native session upload progress.
 
 ### GH-24488: SimpleXML and garbage collection
 

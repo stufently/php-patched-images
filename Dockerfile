@@ -51,6 +51,9 @@ RUN set -eux; \
       echo 'expose_php = Off'; \
       echo 'opcache.enable = 1'; \
       echo 'opcache.enable_cli = 0'; \
+      echo '; php.net advisory 2026-10-23-1 (CVE-2026-115560): off by default,'; \
+      echo '; override in your own conf.d if you need session upload progress.'; \
+      echo 'session.upload_progress.enabled = 0'; \
     } > "$PHP_INI_DIR/conf.d/zz-patched-images.ini"; \
     php -v
 

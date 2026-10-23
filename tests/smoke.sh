@@ -92,7 +92,7 @@ case $VARIANT in
       out=$(docker exec "$cid" php /smoke/fcgi_get.php 127.0.0.1 9000 /var/www/html/index.php 2>/dev/null || true)
       [ -n "$out" ] && break; sleep 1
     done
-    grep -q "^SMOKE-OK $ver fpm-fcgi opcache=1 expose_php=0$" <<<"$out" || { docker logs "$cid" >&2; fail "fpm request failed: '$out'"; }
+    grep -q "^SMOKE-OK $ver fpm-fcgi opcache=1 expose_php=0 upload_progress=0$" <<<"$out" || { docker logs "$cid" >&2; fail "fpm request failed: '$out'"; }
     echo "fpm: $out"
     if [ -n "$COMMIT" ]; then
       out=$(docker exec "$cid" php /smoke/fcgi_get.php 127.0.0.1 9000 /var/www/html/build.php 2>/dev/null || true)
@@ -107,7 +107,7 @@ case $VARIANT in
       out=$(docker exec "$cid" php -r 'echo @file_get_contents("http://127.0.0.1/index.php");' 2>/dev/null || true)
       [ -n "$out" ] && break; sleep 1
     done
-    grep -q "^SMOKE-OK $ver apache2handler opcache=1 expose_php=0$" <<<"$out" || { docker logs "$cid" >&2; fail "apache request failed: '$out'"; }
+    grep -q "^SMOKE-OK $ver apache2handler opcache=1 expose_php=0 upload_progress=0$" <<<"$out" || { docker logs "$cid" >&2; fail "apache request failed: '$out'"; }
     echo "apache: $out"
     if [ -n "$COMMIT" ]; then
       out=$(docker exec "$cid" php -r 'echo @file_get_contents("http://127.0.0.1/build.php");' 2>/dev/null || true)
