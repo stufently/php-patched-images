@@ -41,6 +41,26 @@ else
   echo "version: $ver (>= $need)"
 fi
 
+# GH-24488: on 8.4.27 / 8.5.12 the GC double-frees the SimpleXMLElement
+# properties table (zend_mm_heap corrupted, rc=139). Both repros must print
+# exactly "done". Those two releases must also ship PHP_PATCHES containing
+# gh24488; other versions are not required to.
+for f in gh24488-repro.php gh24488-repro-json.php; do
+  rc=0
+  out=$(docker run --rm --entrypoint php -v "$HERE:/smoke:ro" "$IMAGE" "/smoke/$f" 2>&1) || rc=$?
+  [ "$rc" = 0 ] && [ "$out" = done ] || fail "gh24488 repro $f: rc=$rc ${out}"
+done
+patches=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" | sed -n 's/^PHP_PATCHES=//p' || true)
+case $ver in
+  8.4.27|8.5.12)
+    case $patches in
+      *gh24488*) ;;
+      *) fail "gh24488: PHP $ver env PHP_PATCHES='${patches}' does not contain gh24488" ;;
+    esac
+    ;;
+esac
+echo "gh24488: ok (patches: ${patches:-none})"
+
 case $PROFILE in
   base) exts=() ;;
   web)  exts=(bcmath exif gd intl ldap mysqli pdo_mysql soap zip imagick memcached) ;;

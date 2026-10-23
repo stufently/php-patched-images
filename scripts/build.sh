@@ -68,6 +68,16 @@ case $BRANCH in
     ;;
 esac
 
+# ENV PHP_PATCHES="id …" is quoted, so envval (field $3) does not see it.
+# N is the number of ids. Primary and pinned tags stay bare: CI derives the
+# dated snapshot from the pinned tag, and verify-published.sh checks that
+# name. -pN aliases go at the end (8.4.27-cli -> 8.4.27-p1-cli).
+patch_ids=$(awk -F'"' '/^ENV PHP_PATCHES="/ {print $2; exit}' "$DIR/Dockerfile")
+patch_n=0
+if [ -n "$patch_ids" ]; then
+  patch_n=$(awk '{print NF}' <<<"$patch_ids")
+fi
+
 case $OS in trixie) os_sfx=() ;; bookworm) os_sfx=(-bookworm) ;; alpine) os_sfx=(-alpine "-alpine$ALPINE") ;; esac
 [[ $BRANCH == *-backport ]] && os_sfx=()   # one base only, documented in README
 
@@ -85,6 +95,15 @@ for p in $profiles; do
   else
     tags=("$BRANCH-$name${os_sfx[0]}" "$pinned-$name${os_sfx[0]}")
     for s in "${os_sfx[@]:1}"; do tags+=("$BRANCH-$name$s" "$pinned-$name$s"); done
+  fi
+  if [ "$patch_n" -gt 0 ]; then
+    patch_tags=()
+    for t in "${tags[@]}"; do
+      if [[ $t == "$pinned-"* ]]; then
+        patch_tags+=("${pinned}-p${patch_n}-${t#"${pinned}-"}")
+      fi
+    done
+    tags+=("${patch_tags[@]}")
   fi
   local_tag="$PREFIX:${tags[0]}"
   if [ "${LIST_ONLY:-}" = 1 ]; then

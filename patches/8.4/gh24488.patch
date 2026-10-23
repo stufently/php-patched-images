@@ -1,0 +1,44 @@
+Fix GH-24488: GC double-frees the SimpleXMLElement properties table
+
+Upstream: https://github.com/php/php-src/commit/f9634847258a8c3ed6c12bb79104eba60bb631ea
+(php-src PHP-8.4 branch; NEWS hunk dropped). Applies to PHP 8.4.27.
+Remove this patch when core/8.4 moves to PHP 8.4.28 or later.
+
+--- a/ext/simplexml/simplexml.c
++++ b/ext/simplexml/simplexml.c
+@@ -2202,7 +2202,7 @@
+ 
+ 	if (sxe->properties) {
+ 		ZEND_ASSERT(!(GC_FLAGS(sxe->properties) & IS_ARRAY_IMMUTABLE));
+-		zend_hash_release(sxe->properties);
++		zend_array_release(sxe->properties);
+ 	}
+ }
+ /* }}} */
+--- a/ext/simplexml/tests/gh24488.phpt
++++ b/ext/simplexml/tests/gh24488.phpt
+@@ -0,0 +1,24 @@
++--TEST--
++GH-24488 (GC double-frees the SimpleXMLElement properties table)
++--EXTENSIONS--
++simplexml
++--FILE--
++<?php
++
++for ($i = 0; $i < 2; $i++) {
++    $xml = new SimpleXMLElement('<a><b/></a>');
++    get_object_vars($xml);
++
++    $holder = new stdClass;
++    $holder->xml = $xml;
++    $holder->self = $holder;
++    unset($xml, $holder);
++
++    gc_collect_cycles();
++    $junk[] = str_repeat('x', 100);
++}
++
++echo "Done\n";
++?>
++--EXPECT--
++Done

@@ -102,6 +102,15 @@ docker-library/php (коммит с исправленными версиями 
   Пример: `8.4-fpm-web` (trixie), `8.4-fpm-web-bookworm`,
   `8.4-fpm-web-alpine`, `8.4.27-fpm-web-alpine3.24`,
   снимок `8.4.27-fpm-web-bookworm-YYYYMMDD`.
+* для 8.4 и 8.5 к тегу с точной версией есть алиас уровня патчей, например
+  `8.4.27-p1-fpm-web` (то же с `-bookworm`, `-alpine`, `-alpine3.24`).
+  `p1` — один патч php-src поверх релиза. Голые теги `8.4.27-*` и `8.4-*`
+  (и такие же у 8.5) тоже собраны с этим патчем: pinned-тег остаётся голой
+  версией, от него CI делает снимок `…-YYYYMMDD`, и его проверяет
+  `tests/verify-published.sh`. Список патчей — метка
+  `org.opencontainers.image.php-src.patches`
+  (`docker inspect --format '{{index .Config.Labels "org.opencontainers.image.php-src.patches"}}' IMAGE`),
+  переменная `PHP_PATCHES` и каталог `/usr/src/php-patches/`.
 * теги с суффиксом `-amd64`/`-arm64` — служебные, используйте мульти-арх теги без него;
 * профиль:
 
@@ -139,6 +148,20 @@ RUN install-php-extensions mongodb
 | 8.2 (8.2.35) | то же для `8.2` | то же | то же |
 | 8.1 бэкпорт (8.1.34 + коммит `1d7dec1`) | — | `8.1-backport-cli` `8.1-backport-cli-web` `8.1-backport-cli-app` `8.1-backport-cli-dev` `8.1-backport-fpm` `8.1-backport-fpm-web` `8.1-backport-fpm-app` `8.1-backport-fpm-dev` `8.1-backport-apache` `8.1-backport-apache-web` `8.1-backport-apache-app` | — |
 | 7.4 бэкпорт (7.4.34-dev, коммит `712e60f`) | — | `7.4-backport-cli` `7.4-backport-cli-web` `7.4-backport-cli-app` `7.4-backport-cli-dev` `7.4-backport-fpm` `7.4-backport-fpm-web` `7.4-backport-fpm-app` `7.4-backport-fpm-dev` `7.4-backport-apache` `7.4-backport-apache-web` `7.4-backport-apache-app` | — |
+
+### GH-24488: SimpleXML и сборщик мусора
+
+В PHP 8.4.27 и 8.5.12 сборщик мусора дважды освобождает таблицу свойств
+`SimpleXMLElement`, и процесс падает с `zend_mm_heap corrupted`. На образы
+8.4 и 8.5 наложен upstream-коммит
+[f9634847](https://github.com/php/php-src/commit/f9634847258a8c3ed6c12bb79104eba60bb631ea);
+он войдёт в 8.4.28 и 8.5.13, после этого патч будет убран.
+
+Use-after-free в `unserialize` ([php-src#24481](https://github.com/php/php-src/issues/24481))
+в PHP не исправлен, PR [php/php-src#24551](https://github.com/php/php-src/pull/24551)
+открыт, в наших образах исправления нет.
+
+Для хостов, где PHP пересобрать нельзя (Sury, cPanel, DirectAdmin), временный вариант — сторонний модуль https://github.com/HOSTED-POWER/php_uploadprogress_guard: сторонний код молодого проекта, пинить на проверенный коммит; в наши образы не встроен.
 
 ### Бэкпорты 7.4 и 8.1 (best-effort)
 
@@ -273,6 +296,16 @@ time, so nothing is built `FROM php:*`; no bullseye), and extension profiles on 
   `8.2-fpm-dev-alpine`;
   exact version tags `8.5.12-fpm-app` and dated snapshots
   `8.5.12-fpm-app-YYYYMMDD`;
+* patch level: on 8.4 and 8.5 the exact-version tag also has a `-pN` alias,
+  for example `8.4.27-p1-fpm-web` (same with `-bookworm`, `-alpine`,
+  `-alpine3.24`). `p1` means one php-src patch on top of the release.
+  The bare tags `8.4.27-*` and `8.4-*` (and the 8.5 equivalents) carry that
+  patch too: the pinned tag stays a bare version because CI derives the
+  dated snapshot from it and `tests/verify-published.sh` checks that name.
+  See which patches are included via the label
+  `org.opencontainers.image.php-src.patches`
+  (`docker inspect --format '{{index .Config.Labels "org.opencontainers.image.php-src.patches"}}' IMAGE`),
+  the `PHP_PATCHES` environment variable, and `/usr/src/php-patches/`;
 * OS: no suffix = Debian 13 trixie (cli/fpm/apache, all profiles);
   `-bookworm` = Debian 12 (same variants and profiles); `-alpine` /
   `-alpine3.24` = Alpine 3.24 (cli/fpm, all profiles);
@@ -285,6 +318,20 @@ time, so nothing is built `FROM php:*`; no bullseye), and extension profiles on 
 * migrate: replace `FROM php:8.x-<variant>[-bookworm|-alpine]` with
   `FROM ghcr.io/stufently/php-patched-images:8.x-<variant>[-bookworm|-alpine]`,
   rebuild and restart all workers.
+
+### GH-24488: SimpleXML and garbage collection
+
+In PHP 8.4.27 and 8.5.12 the garbage collector frees the `SimpleXMLElement`
+properties table twice and the process dies with `zend_mm_heap corrupted`.
+The 8.4 and 8.5 images apply upstream commit
+[f9634847](https://github.com/php/php-src/commit/f9634847258a8c3ed6c12bb79104eba60bb631ea);
+it will be in 8.4.28 and 8.5.13, and the patch will be removed then.
+
+The `unserialize` use-after-free ([php-src#24481](https://github.com/php/php-src/issues/24481))
+is not fixed in PHP. PR [php/php-src#24551](https://github.com/php/php-src/pull/24551)
+is open. These images do not include a fix.
+
+Where PHP cannot be rebuilt (Sury, cPanel, DirectAdmin), a temporary option is the third-party module https://github.com/HOSTED-POWER/php_uploadprogress_guard: third-party code of a young project, pin a commit you have checked; it is not built into these images.
 
 ### PHP 7.4 and 8.1 backports (best-effort)
 

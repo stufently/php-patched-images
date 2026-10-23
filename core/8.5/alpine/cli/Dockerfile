@@ -4,7 +4,7 @@
 # PLEASE DO NOT EDIT IT DIRECTLY.
 #
 
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 # dependencies required for running "phpize"
 # these get automatically installed and removed by "docker-php-ext-*" (unless they're already installed)
@@ -57,6 +57,8 @@ ENV PHP_LDFLAGS="-Wl,-O1 -pie"
 ENV GPG_KEYS 1198C0117593497A5EC5C199286AF1F9897469DC 49D9AF6BC72A80D6691719C8AA23F5BE9C7097D4 D95C03BC702BE9515344AE3374E44BC9067701A5
 
 ENV PHP_VERSION 8.5.12
+ENV PHP_PATCHES="gh24488"
+LABEL org.opencontainers.image.php-src.patches="gh24488"
 ENV PHP_URL="https://www.php.net/distributions/php-8.5.12.tar.xz" PHP_ASC_URL="https://www.php.net/distributions/php-8.5.12.tar.xz.asc"
 ENV PHP_SHA256="08bc2eba2a588654ade1357174aa646b761556c862dda0678345ee29ed481209"
 
@@ -85,10 +87,12 @@ RUN set -eux; \
 	apk del --no-network .fetch-deps
 
 COPY docker-php-source /usr/local/bin/
+COPY patches/ /usr/src/php-patches/
 
 RUN set -eux; \
 	apk add --no-cache --virtual .build-deps \
 		$PHPIZE_DEPS \
+		patch \
 		argon2-dev \
 		coreutils \
 		curl-dev \
@@ -115,6 +119,7 @@ RUN set -eux; \
 	; \
 	docker-php-source extract; \
 	cd /usr/src/php; \
+	for p in /usr/src/php-patches/*.patch; do patch -p1 --forward --batch --fuzz=0 -i "$p"; done; \
 	gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"; \
 	case "$gnuArch" in \
 		'i686-linux-'*) \
