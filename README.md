@@ -249,7 +249,14 @@ php -r 'var_dump(version_compare(PHP_VERSION, "8.4.27", ">="));'   # для св
 
 * `session.upload_progress.enabled=0` — в `php.ini` или в пуле FPM
   (`php_admin_value[session.upload_progress.enabled] = 0`), НЕ через
-  `ini_set()`/`.user.ini`, затем рестарт всех воркеров;
+  `ini_set()`/`.user.ini`, затем рестарт всех воркеров. Отдельный
+  информационный advisory php.net
+  [2026-10-23-1](https://www.php.net/archive/2026.php#2026-10-23-1) рекомендует
+  выключить эту опцию до следующего bugfix-релиза против маловероятного
+  RCE-вектора **CVE-2026-115560** (эксплуатируется только если приложение
+  переключает `session.serialize_handler` в рантайме через `ini_set()` до
+  `session_start()`; приложения, которые этого не делают, могут оставить опцию
+  включённой);
 * `memory_limit=-1` через `php_admin_value`, низкий `post_max_size`
   (8M без загрузок файлов, 32M с ними), лимиты на размер/число полей и частей
   запроса на прокси;
@@ -318,6 +325,17 @@ time, so nothing is built `FROM php:*`; no bullseye), and extension profiles on 
 * migrate: replace `FROM php:8.x-<variant>[-bookworm|-alpine]` with
   `FROM ghcr.io/stufently/php-patched-images:8.x-<variant>[-bookworm|-alpine]`,
   rebuild and restart all workers.
+
+Separate informational advisory
+[2026-10-23-1](https://www.php.net/archive/2026.php#2026-10-23-1): set
+`session.upload_progress.enabled=0` (via `php.ini` / FPM pool / server config,
+not `ini_set()` or `.user.ini`; restart all workers) until the next regular
+bugfix release, to protect from the unlikely RCE vector **CVE-2026-115560**.
+It is exploitable only if an application sets `session.serialize_handler` to
+`php_binary`/`php_serialize` and then switches it to `php` at runtime with
+`ini_set()` before `session_start()`; applications that never change the
+serialize handler at runtime can keep the feature enabled. The fix ships in the
+next release; these images do not change the default.
 
 ### GH-24488: SimpleXML and garbage collection
 
