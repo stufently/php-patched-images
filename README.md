@@ -10,7 +10,7 @@ Multi-arch: `linux/amd64` + `linux/arm64`. Rebuilt weekly.
 
 [Русский](#по-русски) | [English](#english)
 
-### Нужна помощь с обновлением PHP или переносом сайта?
+## Нужна помощь с обновлением PHP или переносом сайта?
 
 Предлагаю платную помощь с обновлением PHP в Docker и на обычных Linux-серверах,
 а также адаптацией старого PHP-сайта к поддерживаемой версии. Сначала проверяем
@@ -31,7 +31,7 @@ assessment; staging checks, backups and a rollback plan come before production
 rollout. Send your PHP version, framework/CMS and deployment details via
 [Telegram @stufently](https://t.me/stufently), without passwords or keys.
 
-### Quick start
+## Quick start
 
 ```bash
 docker pull ghcr.io/stufently/php-patched-images:8.5-fpm-web

@@ -1,0 +1,54 @@
+# Site config for .github/site/build.py. Everything else comes from README.md.
+name = "php-patched-images"
+title = "php-patched-images — PHP Docker images for php2shell CVEs"
+headline = "PHP 8.2–8.5 Docker images patched for CVE-2026-109618 and CVE-2026-109619"
+description = "PHP 8.2–8.5 Docker images (cli, fpm, apache) built from source with the php2shell fixes CVE-2026-109618 / CVE-2026-109619, multi-arch, on GHCR."
+lang = "en"
+keywords = ["php docker image", "php2shell", "CVE-2026-109618", "CVE-2026-109619", "CVE-2026-115560", "php-fpm", "php apache", "php 8.5", "php 7.4 backport", "ghcr"]
+license = "MIT"
+license_url = "https://opensource.org/license/mit"
+category = "DeveloperApplication"
+os = "Linux"
+programming_language = "Dockerfile"
+eyebrow = "Open source · MIT · linux/amd64 + linux/arm64"
+download_url = "https://github.com/stufently/php-patched-images/pkgs/container/php-patched-images"
+
+# README "## <name>" sections shown on the home page, in this order (exact titles).
+landing_sections = ["Quick start", "English"]
+
+# Extra markdown pages besides README; docs/ holds only internal specs.
+pages = []
+docs_dir = ""
+
+features = [
+  "PHP 8.5.12 / 8.4.27 / 8.3.36 / 8.2.35 built from source with the fixes for CVE-2026-109618 and CVE-2026-109619 (php2shell), tarballs verified by SHA256 and GPG.",
+  "cli, fpm and apache variants on Debian 13 trixie (default), Debian 12 bookworm and Alpine 3.24 (cli and fpm), multi-arch linux/amd64 + linux/arm64.",
+  "Extension profiles: base, web (WordPress, OpenCart), app (Laravel, Symfony + composer) and dev (app + Xdebug).",
+  "Best-effort builds of the official source backports for end-of-life PHP 7.4 and 8.1, pinned to a php-src commit.",
+  "session.upload_progress.enabled=0 by default against CVE-2026-115560 (advisory 2026-10-23-1).",
+  "CI builds natively on amd64 and arm64, runs smoke tests through php-fpm / Apache before publishing to GHCR, and rebuilds weekly for OS security updates.",
+]
+
+[[faq]]
+q = "Which PHP versions fix CVE-2026-109618 and CVE-2026-109619?"
+a = "PHP 8.5.12, 8.4.27, 8.3.36 and 8.2.35, released on 2026-10-21. A build is safe if php -v reports at least the fixed version for its branch; check the build that serves the web (phpinfo() or php-fpm -v), not only the CLI."
+
+[[faq]]
+q = "How do I switch from the official php image?"
+a = "Replace FROM php:8.x-<variant>[-bookworm|-alpine] with FROM ghcr.io/stufently/php-patched-images:8.x-<variant>[-bookworm|-alpine], rebuild and restart all workers. The layout matches the official image: /usr/local/etc/php, docker-php-ext-* and the entrypoint."
+
+[[faq]]
+q = "Why are the images not built FROM php:*?"
+a = "Official php:* images with the fixed versions were not yet on Docker Hub at release time. The images are built from source with the docker-library/php Dockerfiles at the commit that bumped to the fixed versions, with the base image pinned by digest."
+
+[[faq]]
+q = "Are the PHP 7.4 and 8.1 backport images an official PHP release?"
+a = "No. PHP 7.4 and 8.1 are end-of-life; the PHP security team only published minimal fixes on php-src branches, without a tarball, release signature or release test cycle. The 7.4-backport-* and 8.1-backport-* images build those branches pinned to a commit; treat them as a stopgap until you move to 8.2+."
+
+[[faq]]
+q = "How do I tell a fixed 8.1 backport build from a vulnerable one?"
+a = "Not by the version string: the 8.1 branch reports 8.1.34, the same as the last vulnerable official release. Check the commit: phpinfo() Configure Command contains PHP_BACKPORT_COMMIT=<sha>, and the image label org.opencontainers.image.revision.php-src holds it too."
+
+[[faq]]
+q = "What about CVE-2026-115560 and session upload progress?"
+a = "Informational advisory 2026-10-23-1 recommends session.upload_progress.enabled=0 until the next bugfix release. These images already set it to 0 by default in the zz-patched-images.ini overlay; override it in your own conf.d if you need native session upload progress."
