@@ -3,7 +3,15 @@ name: build
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "**.md"
+      - ".github/site/**"
+      - ".github/workflows/pages.yml"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - ".github/site/**"
+      - ".github/workflows/pages.yml"
   schedule:
     - cron: "17 3 * * 1" # weekly rebuild: OS security updates
   workflow_dispatch:
