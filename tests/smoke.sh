@@ -101,6 +101,11 @@ case $VARIANT in
     fi
     ;;
   apache)
+    # CVE-2026-119618 (mod_http2 assign_headers RCE): fixed in httpd 2.4.71.
+    av=$(docker run --rm --entrypoint apache2 "$IMAGE" -v | sed -n 's|^Server version: Apache/\([0-9.]*\).*|\1|p')
+    [ -n "$av" ] || fail "cannot read apache2 -v"
+    [ "$(printf '%s\n' 2.4.71 "$av" | sort -V | head -1)" = 2.4.71 ] || fail "Apache $av is older than fixed 2.4.71 (CVE-2026-119618)"
+    echo "apache2: $av"
     cid=$(docker run -d -v "$HERE/www:/var/www/html:ro" "$IMAGE")
     out=""
     for _ in $(seq 1 20); do
